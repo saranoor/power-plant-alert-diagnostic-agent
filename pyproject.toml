@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solar-diagnosis"
+version = "0.1.0"
+description = "A small solar plant alert and investigation prototype"
+requires-python = ">=3.11"
+dependencies = ["google-genai>=1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
