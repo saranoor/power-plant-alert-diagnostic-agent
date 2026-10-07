@@ -52,7 +52,6 @@ FINISH_TOOL = {
                 "evidence_ids",
                 "missing_inputs",
             ],
-            "additionalProperties": False,
         },
     },
 }

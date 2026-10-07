@@ -26,18 +26,10 @@ def get_sample_investigation_data():
             {"inverter_id": "INV-02", "actual_kw": 99, "expected_kw": 100},
             {"inverter_id": "INV-03", "actual_kw": 98, "expected_kw": 100},
         ],
-        "grid": {
-            "export_limit_active": False,
-            "source_id": "synthetic-grid-status",
-        },
-        "sensors": {
-            "status": "healthy",
-            "source_id": "synthetic-sensor-status",
-        },
-        "irradiance": {
-            "measured_w_m2": 780,
-            "expected_w_m2": 800,
-            "source_id": "synthetic-irradiance",
+        "weather": {
+            "measured_irradiance_w_m2": 780,
+            "expected_irradiance_w_m2": 800,
+            "source_id": "synthetic-weather",
         },
         # No panel observation: the agent should leave that cause unchecked.
     }
