@@ -39,4 +39,4 @@ alert = Alert(**alert)
 
 result = diagnose(alert)
 
-print(result)
+print(f"Result: {result}")
