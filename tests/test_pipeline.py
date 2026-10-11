@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from solar_diagnosis.main import run
+# from solar_diagnosis.main import run
 
 
 class PipelineTests(unittest.TestCase):

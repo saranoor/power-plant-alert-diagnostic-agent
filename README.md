@@ -1,8 +1,7 @@
 # Solar Diagnosis Prototype
 
-A small prototype that checks timestamped plant readings for underperformance,
-then lets an LLM choose among read-only diagnostic tools. The demo uses synthetic
-plant data, not live plant data.
+A leightweight prototype that checks timestamped plant readings for underperformance, then lets an LLM choose among read-only diagnostic tools. The demo uses synthetic plant data, not live plant data. The agent can be explained as shown below:
+![ScreenShot](/design.png)
 
 ## Run
 
