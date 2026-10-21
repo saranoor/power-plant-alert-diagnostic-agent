@@ -29,11 +29,11 @@ Following is a the design flow of how this agentic system would work.
 - Memory: investigation specific include alert, status, tool results, timestamp,  failures, compact summary and report. It is needed because what if Faragate crashses, or job is retried. For large telemetry records S3 and for status, compact summaries, and reports in PostgreSQL
 
 # endpoint
--POST /alerts/{alert_id}/diagnoses 
+- POST /alerts/{alert_id}/diagnoses 
     -    returns the diagnosis id
--GET  /diagnoses/{diagnosis_id}
--GET  /diagnoses/{diagnosis_id}/report
--POST /diagnoses/{diagnosis_id}/cancel
+- GET  /diagnoses/{diagnosis_id}
+- GET  /diagnoses/{diagnosis_id}/report
+- POST /diagnoses/{diagnosis_id}/cancel
 
 # Flow
 - when a POST diagnose/<alert-id> request arrives it reaches ->
@@ -88,10 +88,10 @@ How do you give the model the right context from time-series data without blowin
     I would maintain a versioned, engineer-labeled incident set and retest it whenever prompts, tools, or models change. Compare diagnosis accuracy, tool-use quality, evidence grounding, abstention behavior, latency, and cost against the current baseline; Also, investigate regressions with engineer review before release.
 
 ## observability?
-    cloudwatch
-    Xray
-    AWS Distro for OpenTelemtry
-    each investigation has correlation id i.e investigation_id
+-    cloudwatch
+-    Xray
+-    AWS Distro for OpenTelemtry
+-    each investigation has correlation id i.e investigation_id
 
 release new?
 
