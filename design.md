@@ -29,11 +29,11 @@ Following is a the design flow of how this agentic system would work.
 - Memory: investigation specific include alert, status, tool results, timestamp,  failures, compact summary and report. It is needed because what if Faragate crashses, or job is retried. For large telemetry records S3 and for status, compact summaries, and reports in PostgreSQL
 
 # endpoint
-POST /alerts/{alert_id}/diagnoses 
-    returns the diagnosis id
-GET  /diagnoses/{diagnosis_id}
-GET  /diagnoses/{diagnosis_id}/report
-POST /diagnoses/{diagnosis_id}/cancel
+-POST /alerts/{alert_id}/diagnoses 
+    -    returns the diagnosis id
+-GET  /diagnoses/{diagnosis_id}
+-GET  /diagnoses/{diagnosis_id}/report
+-POST /diagnoses/{diagnosis_id}/cancel
 
 # Flow
 - when a POST diagnose/<alert-id> request arrives it reaches ->
