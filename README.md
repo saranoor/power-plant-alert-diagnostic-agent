@@ -1,4 +1,6 @@
-# Solar Diagnosis Prototype
+# AI Diagnostic Agents for Solar Power Plants
+## Problem
+Modern solar installations face numerous operational challenges that can significantly impact performance and profitability. Traditional diagnostic approaches often fail to identify problems until they've already caused substantial energy losses or equipment damage. An AI Agent can diagnose the issue of Solar Power Plant and share its diagnostic finding with a human Engineer for resolving the issue.
 
 A leightweight prototype that checks timestamped plant readings for underperformance, then lets an LLM choose among read-only diagnostic tools. The demo uses synthetic plant data, not live plant data. The agent can be explained as shown below:
 ![ScreenShot](/design.png)
