@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from solar_diagnosis import agent
 from solar_diagnosis.models import Alert
 
@@ -40,7 +42,12 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
     )
     final_response = SimpleNamespace(
         id="interaction-2",
-        output_text="Two units are offline, reducing plant output.",
+        output_text=(
+            '{"diagnosis":"Two units are offline, reducing plant output.",'
+            '"confidence":0.72,'
+            '"evidence":["get_number_of_units_working: 18 of 20 units are working."],'
+            '"recommended_action":"Have a qualified engineer assess the offline units."}'
+        ),
         steps=[],
     )
 
@@ -68,6 +75,26 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
     result = agent.diagnose(_alert())
 
     assert result.diagnosis == "Two units are offline, reducing plant output."
+    assert result.confidence == 0.72
+    assert result.evidence == [
+        "get_number_of_units_working: 18 of 20 units are working."
+    ]
+    assert result.recommended_action == (
+        "Have a qualified engineer assess the offline units."
+    )
+    assert [entry.model_dump() for entry in result.tool_results] == [
+        {
+            "call_id": "call-1",
+            "tool_name": "get_number_of_units_working",
+            "arguments": {"plant_id": "plant-1"},
+            "result": {
+                "plant_id": "plant-1",
+                "working_units": 18,
+                "total_units": 20,
+            },
+            "is_error": False,
+        }
+    ]
     assert len(interactions.requests) == 2
     continuation = interactions.requests[1]
     assert continuation["previous_interaction_id"] == "interaction-1"
@@ -79,4 +106,65 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
             "result": {"plant_id": "plant-1", "working_units": 18, "total_units": 20},
             "is_error": False,
         }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("output_text", "error_message"),
+    [
+        (None, "Gemini returned no final diagnosis"),
+        ("not JSON", "Gemini returned an invalid structured diagnosis"),
+        (
+            '{"diagnosis":"x","confidence":1.1,"evidence":[],"recommended_action":"x"}',
+            "Gemini returned an invalid structured diagnosis",
+        ),
+    ],
+)
+def test_diagnose_rejects_missing_or_invalid_structured_output(
+    monkeypatch, output_text, error_message
+):
+    class FakeInteractions:
+        def create(self, **kwargs):
+            return SimpleNamespace(output_text=output_text, steps=[])
+
+    monkeypatch.setattr(
+        agent,
+        "client",
+        SimpleNamespace(interactions=FakeInteractions()),
+    )
+
+    with pytest.raises(RuntimeError, match=error_message):
+        agent.diagnose(_alert())
+
+
+def test_call_tool_dispatches_inverter_tools_with_alert_ids(monkeypatch):
+    alert = _alert()
+    tool_names = (
+        "get_inverter_status",
+        "get_inverter_string_data",
+        "get_inverter_temperatures",
+        "get_inverter_alarms",
+        "get_inverter_events",
+    )
+    calls = []
+
+    def make_fake_tool(tool_name):
+        def fake_tool(*, plant_id, asset_id, **kwargs):
+            calls.append((plant_id, asset_id, kwargs))
+            return tool_name
+
+        return fake_tool
+
+    for name in tool_names:
+        monkeypatch.setattr(agent, name, make_fake_tool(name))
+
+    for name in tool_names:
+        assert agent._call_tool(name, {}, alert) == name
+
+    assert calls == [
+        ("plant-1", "inverter-1", {}),
+        ("plant-1", "inverter-1", {}),
+        ("plant-1", "inverter-1", {}),
+        ("plant-1", "inverter-1", {"window_minutes": 30}),
+        ("plant-1", "inverter-1", {"window_hours": 72}),
     ]
