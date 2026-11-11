@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from deepeval.metrics import (
     AnswerRelevancyMetric,
@@ -61,6 +61,7 @@ class EvaluationTrace:
     expected_tools: tuple[str, ...]
     ledger: tuple[LedgerEntry, ...] = ()
     retrieval_context: tuple[str, ...] = ()
+    expected_diagnosis: str = ""
 
 
 @dataclass
@@ -94,7 +95,7 @@ def load_golden_dataset(
     )
 
 
-def build_gemini_judge_model(model_name: str = "gemini-2.5-flash"):
+def build_gemini_judge_model(model_name: str | None = None):
     """Create DeepEval's Gemini judge from the project's existing Gemini key."""
     from deepeval.models import GeminiModel
 
@@ -103,6 +104,12 @@ def build_gemini_judge_model(model_name: str = "gemini-2.5-flash"):
         raise RuntimeError(
             "GEMINI_API_KEY or GOOGLE_API_KEY is required for LLM-based evaluation."
         )
+    model_name = (
+        model_name
+        or os.getenv("GEMINI_EVALUATION_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or "gemini-2.5-flash"
+    )
     return GeminiModel(model=model_name, api_key=api_key)
 
 
@@ -193,12 +200,20 @@ class CitationCheckMetric(BaseMetric):
         invalid = sorted(cited_ids - ledger_ids)
         cited_count = len(cited_ids)
         invalid_count = len(invalid)
-        self.score = 1.0 if invalid_count == 0 else (cited_count - invalid_count) / cited_count
-        self.reason = (
-            "All citations exist in the tool ledger."
-            if not invalid
-            else f"Unknown citation IDs: {invalid}"
-        )
+        if ledger_ids and not cited_ids:
+            self.score = 0.0
+            self.reason = "No tool evidence IDs were cited."
+        else:
+            self.score = (
+                1.0
+                if invalid_count == 0
+                else (cited_count - invalid_count) / cited_count
+            )
+            self.reason = (
+                "All citations exist in the tool ledger."
+                if not invalid
+                else f"Unknown citation IDs: {invalid}"
+            )
         self.success = self.score >= self.threshold
         return self.score
 
@@ -272,7 +287,10 @@ def trace_to_test_case(trace: EvaluationTrace) -> LLMTestCase:
     return LLMTestCase(
         input=trace.alert_input,
         actual_output=trace.actual_output,
-        expected_output=f"Cause: {trace.expected_cause}",
+        expected_output=(
+            f"Cause: {trace.expected_cause}. "
+            f"Diagnosis: {trace.expected_diagnosis}"
+        ).strip(),
         context=list(trace.retrieval_context),
         retrieval_context=list(trace.retrieval_context),
         tools_called=[ToolCall(name=name) for name in trace.tools_called],

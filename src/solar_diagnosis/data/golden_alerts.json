@@ -3,6 +3,7 @@
     "id": "offline-units-001",
     "alert": {
       "alert_id": "A-001",
+      "timestamp_utc": "2026-10-09T12:00:00Z",
       "plant": "SOLAR-01",
       "asset": "INV-07",
       "alarm": {"code": "LOW_POWER", "text": "Power below expected", "severity": "high"},
@@ -18,6 +19,7 @@
     "id": "hot-modules-001",
     "alert": {
       "alert_id": "A-002",
+      "timestamp_utc": "2026-10-09T12:00:00Z",
       "plant": "SOLAR-01",
       "asset": "INV-07",
       "alarm": {"code": "HIGH_TEMP", "text": "Module temperature high", "severity": "high"},
@@ -33,6 +35,7 @@
     "id": "low-irradiance-001",
     "alert": {
       "alert_id": "A-003",
+      "timestamp_utc": "2026-10-09T12:00:00Z",
       "plant": "SOLAR-01",
       "asset": "PLANT",
       "alarm": {"code": "LOW_OUTPUT", "text": "Plant output below estimate", "severity": "medium"},
@@ -48,6 +51,7 @@
     "id": "string-underperformance-001",
     "alert": {
       "alert_id": "A-004",
+      "timestamp_utc": "2026-10-09T12:00:00Z",
       "plant": "SOLAR-01",
       "asset": "CB-07",
       "alarm": {"code": "STRING_CURRENT", "text": "String current mismatch", "severity": "high"},
@@ -63,6 +67,7 @@
     "id": "curtailment-001",
     "alert": {
       "alert_id": "A-005",
+      "timestamp_utc": "2026-10-09T12:00:00Z",
       "plant": "SOLAR-01",
       "asset": "PLANT",
       "alarm": {"code": "CURTAILMENT", "text": "Grid command curtailed output", "severity": "medium"},

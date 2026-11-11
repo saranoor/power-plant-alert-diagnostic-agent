@@ -1,0 +1,15 @@
+.git
+.venv
+.vscode
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.deepeval
+.env
+.env.*
+!.env.example
+tests
+evaluation
+design*
+take-home.*

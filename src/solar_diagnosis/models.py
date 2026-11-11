@@ -1,4 +1,16 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
+
+
+CauseLabel = Literal[
+    "offline_units",
+    "hot_modules",
+    "low_irradiance",
+    "string_underperformance",
+    "grid_curtailment",
+    "unknown",
+]
 
 
 class Alarm(BaseModel):
@@ -20,9 +32,9 @@ class Weather(BaseModel):
 
 class Readings(BaseModel):
     ac_power_kw: float
-    # expected_ac_power_kw: float
+    expected_ac_power_kw: float | None = None
     dc_voltage_v: float
-    # strings_below_expected: list[str]
+    strings_below_expected: list[str] | None = None
 
 
 class Alert(BaseModel):
@@ -32,15 +44,16 @@ class Alert(BaseModel):
     asset: str
     alarm: Alarm
     state: PlantState
-    # weather: Weather
+    weather: Weather | None = None
     readings: Readings
-    # data_quality: str
-    # related_alarms_last_30min: list[str]
-    # recent_events: list[str]
+    data_quality: str | None = None
+    related_alarms_last_30min: list[str] | None = None
+    recent_events: list[str] | None = None
 
 
 class ToolResult(BaseModel):
     call_id: str
+    evidence_id: str
     tool_name: str
     arguments: dict[str, object]
     result: object
@@ -51,6 +64,7 @@ class Diagnosis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     diagnosis: str
+    predicted_cause: CauseLabel
     confidence: float = Field(ge=0.0, le=1.0)
     evidence: list[str]
     recommended_action: str

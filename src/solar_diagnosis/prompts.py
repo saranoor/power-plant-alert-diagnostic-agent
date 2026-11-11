@@ -16,16 +16,23 @@ Do not immediately conclude the cause.
 Return only valid JSON with exactly these fields:
 {
   "diagnosis": "concise diagnosis",
+  "predicted_cause": "one allowed cause label",
   "confidence": 0.0,
   "evidence": ["source: specific supported fact"],
   "recommended_action": "next step"
 }
 
+Use exactly one predicted_cause label from: offline_units, hot_modules,
+low_irradiance, string_underperformance, grid_curtailment, unknown. Choose the
+best-supported specific cause; use unknown when evidence is insufficient or the
+cause does not fit any listed category.
 Confidence must be a number from 0.0 to 1.0 and reflect the strength of the
 available evidence; do not claim certainty or use 1.0. Each evidence item must
 identify its source (an alert field or tool name) and state a fact supported by
-that source. If evidence is insufficient, say so and recommend review by a
-qualified engineer. Do not instruct anyone to touch, reconfigure, isolate, or
-restart high-voltage equipment; those actions require qualified personnel
-following site procedures and the equipment manufacturer's guidance.
+that source. For facts from a tool result, include its exact evidence_id in
+square brackets (for example, [EV-001]); cite only IDs present in tool results.
+If evidence is insufficient, say so and recommend review by a qualified
+engineer. Do not instruct anyone to touch, reconfigure, isolate, or restart
+high-voltage equipment; those actions require qualified personnel following
+site procedures and the equipment manufacturer's guidance.
 """

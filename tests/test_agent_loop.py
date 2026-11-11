@@ -44,8 +44,10 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
         id="interaction-2",
         output_text=(
             '{"diagnosis":"Two units are offline, reducing plant output.",'
+            '"predicted_cause":"offline_units",'
             '"confidence":0.72,'
-            '"evidence":["get_number_of_units_working: 18 of 20 units are working."],'
+            '"evidence":["[EV-001] get_number_of_units_working: '
+            '18 of 20 units are working."],'
             '"recommended_action":"Have a qualified engineer assess the offline units."}'
         ),
         steps=[],
@@ -75,9 +77,10 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
     result = agent.diagnose(_alert())
 
     assert result.diagnosis == "Two units are offline, reducing plant output."
+    assert result.predicted_cause == "offline_units"
     assert result.confidence == 0.72
     assert result.evidence == [
-        "get_number_of_units_working: 18 of 20 units are working."
+        "[EV-001] get_number_of_units_working: 18 of 20 units are working."
     ]
     assert result.recommended_action == (
         "Have a qualified engineer assess the offline units."
@@ -85,6 +88,7 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
     assert [entry.model_dump() for entry in result.tool_results] == [
         {
             "call_id": "call-1",
+            "evidence_id": "EV-001",
             "tool_name": "get_number_of_units_working",
             "arguments": {"plant_id": "plant-1"},
             "result": {
@@ -103,7 +107,14 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
             "type": "function_result",
             "call_id": "call-1",
             "name": "get_number_of_units_working",
-            "result": {"plant_id": "plant-1", "working_units": 18, "total_units": 20},
+            "result": {
+                "evidence_id": "EV-001",
+                "data": {
+                    "plant_id": "plant-1",
+                    "working_units": 18,
+                    "total_units": 20,
+                },
+            },
             "is_error": False,
         }
     ]
@@ -115,7 +126,13 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
         (None, "Gemini returned no final diagnosis"),
         ("not JSON", "Gemini returned an invalid structured diagnosis"),
         (
-            '{"diagnosis":"x","confidence":1.1,"evidence":[],"recommended_action":"x"}',
+            '{"diagnosis":"x","predicted_cause":"offline_units","confidence":1.1,'
+            '"evidence":[],"recommended_action":"x"}',
+            "Gemini returned an invalid structured diagnosis",
+        ),
+        (
+            '{"diagnosis":"x","predicted_cause":"inverter_fault","confidence":0.5,'
+            '"evidence":[],"recommended_action":"x"}',
             "Gemini returned an invalid structured diagnosis",
         ),
     ],

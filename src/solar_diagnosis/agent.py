@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from .models import Alert, Diagnosis, ToolResult
 from .prompts import DIAGNOSTIC_PROMPT
+from .utils import extract_json
 from .tools import (
     get_number_of_units_working,
     get_panels_temperature,
@@ -35,7 +36,7 @@ socket.getaddrinfo = ipv4_getaddrinfo
 
 _api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 client = genai.Client(api_key=_api_key) if _api_key else None
-MODEL_NAME = "gemini-3.5-flash"
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 MAX_TOOL_ROUNDS = 5
 
 
@@ -167,12 +168,8 @@ def _call_tool(name: str, arguments: dict, alert: Alert | None = None):
         plant_id = arguments.get("plant_id") or (alert.plant if alert else None)
         asset_id = arguments.get("asset_id") or (alert.asset if alert else None)
         if not plant_id or not asset_id:
-            raise ValueError(
-                "Plant and asset IDs are required for inverter analysis."
-            )
-        if alert is not None and (
-            plant_id != alert.plant or asset_id != alert.asset
-        ):
+            raise ValueError("Plant and asset IDs are required for inverter analysis.")
+        if alert is not None and (plant_id != alert.plant or asset_id != alert.asset):
             raise ValueError(
                 "Inverter analysis is limited to the alert plant and asset."
             )
@@ -222,15 +219,18 @@ def diagnose(alert: Alert) -> Diagnosis:
             if not isinstance(final_text, str) or not final_text.strip():
                 raise RuntimeError(
                     "Gemini returned no final diagnosis. Expected JSON with "
-                    "diagnosis, confidence, evidence, and recommended_action."
+                    "diagnosis, predicted_cause, confidence, evidence, and "
+                    "recommended_action."
                 )
+            final_text = extract_json(final_text)
             try:
                 diagnosis = Diagnosis.model_validate_json(final_text)
             except ValidationError as error:
+                print(f"Final_text: {final_text}")
                 raise RuntimeError(
                     "Gemini returned an invalid structured diagnosis. Expected "
-                    "JSON with diagnosis, confidence (0-1), evidence, and "
-                    "recommended_action."
+                    "JSON with diagnosis, predicted_cause, confidence (0-1), "
+                    "evidence, and recommended_action."
                 ) from error
             return diagnosis.model_copy(update={"tool_results": tool_results})
 
@@ -261,13 +261,17 @@ def diagnose(alert: Alert) -> Diagnosis:
                     "type": "function_result",
                     "call_id": call.id,
                     "name": call.name,
-                    "result": result,
+                    "result": {
+                        "evidence_id": f"EV-{len(tool_results) + 1:03d}",
+                        "data": result,
+                    },
                     "is_error": is_error,
                 }
             )
             tool_results.append(
                 ToolResult(
                     call_id=call.id,
+                    evidence_id=f"EV-{len(tool_results) + 1:03d}",
                     tool_name=call.name,
                     arguments=call.arguments,
                     result=result,

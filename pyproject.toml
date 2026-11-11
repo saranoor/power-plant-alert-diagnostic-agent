@@ -7,7 +7,14 @@ name = "solar-diagnosis"
 version = "0.1.0"
 description = "A small solar plant alert and investigation prototype"
 requires-python = ">=3.11"
-dependencies = ["google-genai>=1.0"]
+dependencies = [
+    "google-genai>=1.0",
+    "deepeval>=4.3.3",
+    "python-dotenv>=1.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+solar_diagnosis = ["data/*.json"]
