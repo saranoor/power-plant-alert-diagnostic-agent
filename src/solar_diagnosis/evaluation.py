@@ -98,6 +98,7 @@ def load_golden_dataset(
 def build_gemini_judge_model(model_name: str | None = None):
     """Create DeepEval's Gemini judge from the project's existing Gemini key."""
     from deepeval.models import GeminiModel
+    from google.genai import types
 
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -110,7 +111,14 @@ def build_gemini_judge_model(model_name: str | None = None):
         or os.getenv("GEMINI_MODEL")
         or "gemini-2.5-flash"
     )
-    return GeminiModel(model=model_name, api_key=api_key)
+    timeout_ms = int(os.getenv("GEMINI_TIMEOUT_MS", "120000"))
+    if timeout_ms <= 0:
+        raise ValueError("GEMINI_TIMEOUT_MS must be a positive integer.")
+    return GeminiModel(
+        model=model_name,
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=timeout_ms),
+    )
 
 
 def build_default_metrics(*, model=None, threshold: float = 0.5) -> list[BaseMetric]:

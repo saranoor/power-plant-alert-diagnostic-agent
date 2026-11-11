@@ -1,4 +1,7 @@
+import sys
+
 from solar_diagnosis.agent import diagnose
+from solar_diagnosis.errors import GeminiRateLimitError
 from solar_diagnosis.models import Alert
 
 # alert = {
@@ -136,6 +139,10 @@ alert = {
 # }
 alert = Alert(**alert)
 
-result = diagnose(alert)
+try:
+    result = diagnose(alert)
+except GeminiRateLimitError as error:
+    print(error, file=sys.stderr)
+    raise SystemExit(1) from None
 
 print(f"Result: {result}")

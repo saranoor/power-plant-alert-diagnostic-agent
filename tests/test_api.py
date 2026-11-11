@@ -7,6 +7,7 @@ import pytest
 
 from solar_diagnosis import api
 from solar_diagnosis.evaluation import load_golden_dataset
+from solar_diagnosis.errors import GeminiRateLimitError
 from solar_diagnosis.models import Alert, Diagnosis
 
 
@@ -97,3 +98,25 @@ def test_create_diagnosis_returns_gateway_error_when_agent_raises(
 
     assert status == 502
     assert body["detail"] == "The diagnosis provider could not complete the request."
+
+
+def test_create_diagnosis_returns_service_unavailable_for_rate_limit(
+    monkeypatch, api_url
+):
+    def rate_limited_diagnosis(alert):
+        raise GeminiRateLimitError("Gemini returned HTTP 429.")
+
+    monkeypatch.setattr(api, "diagnose", rate_limited_diagnosis)
+    alert = Alert.model_validate(load_golden_dataset()[0].alert)
+
+    status, body = _request(
+        f"{api_url}/alerts/{alert.alert_id}/diagnoses",
+        method="POST",
+        body=alert.model_dump(mode="json"),
+    )
+
+    assert status == 503
+    assert body["detail"] == (
+        "The diagnosis provider is temporarily rate-limited. Retry later."
+    )
+    assert _request(f"{api_url}/health") == (200, {"status": "ok"})

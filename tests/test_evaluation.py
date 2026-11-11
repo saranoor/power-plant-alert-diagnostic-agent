@@ -10,6 +10,7 @@ from solar_diagnosis.evaluation import (
     trace_to_test_case,
 )
 from solar_diagnosis import agent
+from solar_diagnosis.errors import GeminiRateLimitError
 from solar_diagnosis.models import Alert, Diagnosis, ToolResult
 from solar_diagnosis import run_evaluation
 
@@ -153,7 +154,9 @@ def test_agent_can_run_live_diagnosis():
     assert isinstance(result, Diagnosis)
 
 
-def test_run_evaluation_loads_dotenv_and_evaluates_golden_cases(monkeypatch):
+def test_run_evaluation_loads_dotenv_and_evaluates_golden_cases(
+    monkeypatch, capsys
+):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     loaded_dotenv = []
     evaluated = {}
@@ -193,3 +196,35 @@ def test_run_evaluation_loads_dotenv_and_evaluates_golden_cases(monkeypatch):
     assert report.sample_count == 5
     assert len(evaluated["traces"]) == 5
     assert evaluated["include_deepeval_metrics"] is True
+    output = capsys.readouterr().out
+    assert "[1/5] Diagnosing offline-units-001..." in output
+    assert "[5/5] Finished curtailment-001: unknown" in output
+    assert "Running DeepEval judge metrics..." in output
+
+
+def test_evaluation_cli_enables_agent_progress_logs(monkeypatch):
+    configured = {}
+    monkeypatch.setattr(
+        run_evaluation.logging,
+        "basicConfig",
+        lambda **kwargs: configured.update(kwargs),
+    )
+    monkeypatch.setattr(run_evaluation, "run_evaluation", lambda: None)
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+
+    assert run_evaluation.main() == 0
+    assert configured["level"] == "INFO"
+
+
+def test_evaluation_cli_exits_cleanly_after_rate_limit(monkeypatch, caplog):
+    def fail_with_rate_limit():
+        raise GeminiRateLimitError("HTTP 429")
+
+    monkeypatch.setattr(
+        run_evaluation,
+        "run_evaluation",
+        fail_with_rate_limit,
+    )
+
+    assert run_evaluation.main() == 1
+    assert "HTTP 429" in caplog.text

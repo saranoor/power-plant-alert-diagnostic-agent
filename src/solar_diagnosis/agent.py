@@ -1,11 +1,14 @@
+import logging
 import os
 import socket
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai.errors import ClientError
 from google.genai import types
 from pydantic import ValidationError
 
+from .errors import GeminiRateLimitError
 from .models import Alert, Diagnosis, ToolResult
 from .prompts import DIAGNOSTIC_PROMPT
 from .utils import extract_json
@@ -21,6 +24,8 @@ from .tools import (
     get_plant_coordinates,
 )
 
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 original_getaddrinfo = socket.getaddrinfo
@@ -35,9 +40,31 @@ def ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
 socket.getaddrinfo = ipv4_getaddrinfo
 
 _api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=_api_key) if _api_key else None
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_TIMEOUT_MS = int(os.getenv("GEMINI_TIMEOUT_MS", "120000"))
+if GEMINI_TIMEOUT_MS <= 0:
+    raise ValueError("GEMINI_TIMEOUT_MS must be a positive integer.")
+client = (
+    genai.Client(
+        api_key=_api_key,
+        http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
+    )
+    if _api_key
+    else None
+)
 MAX_TOOL_ROUNDS = 5
+
+
+def _create_interaction(interactions, **kwargs):
+    try:
+        return interactions.create(**kwargs)
+    except ClientError as error:
+        if error.code == 429:
+            raise GeminiRateLimitError(
+                "Gemini returned HTTP 429 (rate limit or quota exceeded). "
+                "Stop this run and retry later."
+            ) from error
+        raise
 
 
 def _tool_declarations():
@@ -198,7 +225,13 @@ def diagnose(alert: Alert) -> Diagnosis:
     if client is None or not getattr(client, "interactions", None):
         raise RuntimeError("GEMINI_API_KEY is required to run the diagnosis agent.")
 
-    interaction = client.interactions.create(
+    logger.info(
+        "Starting diagnosis for alert %s using model %s.",
+        alert.alert_id,
+        MODEL_NAME,
+    )
+    interaction = _create_interaction(
+        client.interactions,
         model=MODEL_NAME,
         input=alert.model_dump_json(),
         system_instruction=DIAGNOSTIC_PROMPT,
@@ -226,12 +259,23 @@ def diagnose(alert: Alert) -> Diagnosis:
             try:
                 diagnosis = Diagnosis.model_validate_json(final_text)
             except ValidationError as error:
-                print(f"Final_text: {final_text}")
+                logger.error(
+                    "Gemini returned invalid structured output for alert %s.",
+                    alert.alert_id,
+                    exc_info=True,
+                )
                 raise RuntimeError(
                     "Gemini returned an invalid structured diagnosis. Expected "
                     "JSON with diagnosis, predicted_cause, confidence (0-1), "
                     "evidence, and recommended_action."
                 ) from error
+            logger.info(
+                "Diagnosis completed for alert %s after %d tool rounds "
+                "and %d tool calls.",
+                alert.alert_id,
+                tool_rounds,
+                len(tool_results),
+            )
             return diagnosis.model_copy(update={"tool_results": tool_results})
 
         if tool_rounds >= MAX_TOOL_ROUNDS:
@@ -245,14 +289,24 @@ def diagnose(alert: Alert) -> Diagnosis:
             )
 
         function_results = []
-        print(f"function call: {function_calls}")
+        logger.info(
+            "Alert %s: executing %d tool call(s) in round %d: %s.",
+            alert.alert_id,
+            len(function_calls),
+            tool_rounds + 1,
+            ", ".join(call.name for call in function_calls),
+        )
         for call in function_calls:
-            print("calling")
             try:
-                print(f"making function call to; {call.name}")
                 result = _call_tool(call.name, call.arguments, alert)
                 is_error = False
             except Exception as error:
+                logger.error(
+                    "Tool %s failed while diagnosing alert %s.",
+                    call.name,
+                    alert.alert_id,
+                    exc_info=True,
+                )
                 result = {"error": str(error)}
                 is_error = True
 
@@ -279,7 +333,8 @@ def diagnose(alert: Alert) -> Diagnosis:
                 )
             )
 
-        interaction = client.interactions.create(
+        interaction = _create_interaction(
+            client.interactions,
             model=MODEL_NAME,
             previous_interaction_id=interaction.id,
             input=function_results,
@@ -287,5 +342,8 @@ def diagnose(alert: Alert) -> Diagnosis:
             tools=_tool_declarations(),
         )
         tool_rounds += 1
-        print(f"number of rounds so far: {tool_rounds}")
-        print(interaction)
+        logger.info(
+            "Alert %s: completed tool round %d; awaiting model response.",
+            alert.alert_id,
+            tool_rounds,
+        )

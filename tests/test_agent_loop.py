@@ -1,8 +1,10 @@
 from types import SimpleNamespace
 
 import pytest
+from google.genai.errors import ClientError
 
 from solar_diagnosis import agent
+from solar_diagnosis.errors import GeminiRateLimitError
 from solar_diagnosis.models import Alert
 
 
@@ -27,7 +29,10 @@ def _alert():
     )
 
 
-def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
+def test_diagnose_executes_function_call_and_returns_tool_result(
+    monkeypatch, caplog
+):
+    caplog.set_level("INFO", logger=agent.__name__)
     first_response = SimpleNamespace(
         id="interaction-1",
         output_text=None,
@@ -76,6 +81,16 @@ def test_diagnose_executes_function_call_and_returns_tool_result(monkeypatch):
 
     result = agent.diagnose(_alert())
 
+    assert "Starting diagnosis for alert alert-1" in caplog.text
+    assert (
+        "executing 1 tool call(s) in round 1: get_number_of_units_working"
+        in caplog.text
+    )
+    assert (
+        "Diagnosis completed for alert alert-1 after 1 tool rounds and "
+        "1 tool calls."
+    ) in caplog.text
+    assert "ThoughtStep" not in caplog.text
     assert result.diagnosis == "Two units are offline, reducing plant output."
     assert result.predicted_cause == "offline_units"
     assert result.confidence == 0.72
@@ -151,6 +166,27 @@ def test_diagnose_rejects_missing_or_invalid_structured_output(
     )
 
     with pytest.raises(RuntimeError, match=error_message):
+        agent.diagnose(_alert())
+
+
+@pytest.mark.parametrize(
+    ("status_code", "expected_error"),
+    [(429, GeminiRateLimitError), (503, ClientError)],
+)
+def test_diagnose_handles_rate_limit_without_hiding_other_api_errors(
+    monkeypatch, status_code, expected_error
+):
+    class FakeInteractions:
+        def create(self, **kwargs):
+            raise ClientError(status_code, {"message": "provider error"})
+
+    monkeypatch.setattr(
+        agent,
+        "client",
+        SimpleNamespace(interactions=FakeInteractions()),
+    )
+
+    with pytest.raises(expected_error):
         agent.diagnose(_alert())
 
 

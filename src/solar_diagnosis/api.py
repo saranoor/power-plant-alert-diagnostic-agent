@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlsplit
 from pydantic import ValidationError
 
 from .agent import diagnose
+from .errors import GeminiRateLimitError
 from .models import Alert, Diagnosis
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,17 @@ class DiagnosisRequestHandler(BaseHTTPRequestHandler):
 
         try:
             result = diagnose(alert)
+        except GeminiRateLimitError as error:
+            logger.warning(
+                "Diagnosis provider rate-limited alert %s: %s",
+                alert.alert_id,
+                error,
+            )
+            self._send_error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "The diagnosis provider is temporarily rate-limited. Retry later.",
+            )
+            return
         except RuntimeError as error:
             if "GEMINI_API_KEY is required" in str(error):
                 self._send_error(

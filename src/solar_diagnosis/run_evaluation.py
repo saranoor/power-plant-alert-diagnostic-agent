@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import asdict
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from .errors import GeminiRateLimitError
 from .evaluation import (
     ClassificationMetrics,
     EvaluationTrace,
@@ -66,17 +68,36 @@ def run_evaluation() -> ClassificationMetrics:
     from .agent import diagnose
 
     cases = load_golden_dataset()
-    traces = [
-        _build_trace(case, diagnose(Alert.model_validate(case.alert)))
-        for case in cases
-    ]
+    traces = []
+    for index, case in enumerate(cases, start=1):
+        print(
+            f"[{index}/{len(cases)}] Diagnosing {case.id}...",
+            flush=True,
+        )
+        diagnosis = diagnose(Alert.model_validate(case.alert))
+        traces.append(_build_trace(case, diagnosis))
+        print(
+            f"[{index}/{len(cases)}] Finished {case.id}: "
+            f"{diagnosis.predicted_cause}",
+            flush=True,
+        )
+
+    print("Running DeepEval judge metrics...", flush=True)
     classification, _ = evaluate_traces(traces, include_deepeval_metrics=True)
     print(json.dumps(asdict(classification), indent=2, sort_keys=True))
     return classification
 
 
 def main() -> int:
-    run_evaluation()
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    try:
+        run_evaluation()
+    except GeminiRateLimitError as error:
+        logging.getLogger(__name__).error("%s", error)
+        return 1
     return 0
 
 
