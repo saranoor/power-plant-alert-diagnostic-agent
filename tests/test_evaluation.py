@@ -143,6 +143,7 @@ def test_evaluation_trace_uses_agent_evidence_ids_for_citations():
     assert metric.measure(test_case) == 1.0
 
 
+@pytest.mark.live
 def test_agent_can_run_live_diagnosis():
     if agent.client is None:
         pytest.skip("Set GEMINI_API_KEY or GOOGLE_API_KEY to run the live agent test.")
