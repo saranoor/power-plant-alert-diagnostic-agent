@@ -27,3 +27,46 @@ Run tests with:
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+Run the golden-alert agent evaluation from the project root with Gemini
+credentials set in `.env` (`GEMINI_API_KEY` or `GOOGLE_API_KEY`). Set
+`GEMINI_MODEL` to configure the diagnosis model; optionally set
+`GEMINI_EVALUATION_MODEL` to select a separate DeepEval judge model.
+
+```powershell
+.\.venv\Scripts\python.exe -m solar_diagnosis.run_evaluation
+```
+
+This runs the diagnosis agent for each golden alert, prints classification
+metrics, and runs the configured DeepEval judge metrics. It makes live Gemini
+API calls and may incur usage charges.
+
+## HTTP API
+
+Start the long-running API locally:
+
+```powershell
+.\.venv\Scripts\python.exe -m solar_diagnosis.api
+```
+
+The API provides `GET /health` and `POST /alerts/{alert_id}/diagnoses`.
+The POST body is an alert JSON object; its `alert_id` must match the path.
+Successful responses contain the diagnosis, predicted cause, confidence,
+evidence, recommended action, and tool results. The endpoint calls Gemini
+synchronously, so the request remains open while the agent investigates. The
+service uses Python's built-in HTTP server and listens on `0.0.0.0:8000` by
+default; configure `HOST` or `PORT` to change the bind address.
+
+## Docker
+
+Build and run the API container from the project root:
+
+```powershell
+docker build -t solar-diagnosis .
+docker run --rm -p 8000:8000 --env-file .env solar-diagnosis
+```
+
+The image excludes `.env`; credentials are supplied at runtime. For Fargate,
+provide `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) through ECS task secrets rather
+than baking credentials into the image. The root `main.py` one-shot sample
+remains available locally with `python main.py`.
